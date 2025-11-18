@@ -14,10 +14,7 @@
   },
   "functions": {
     "pages/api/**/*.js": {
-      "includeFiles": [
-        "node_modules/.prisma/client/**/*",
-        "prisma/schema.prisma"
-      ]
+      "includeFiles": "node_modules/.prisma/client/**/*"
     }
   },
   "headers": [
