@@ -1,0 +1,1127 @@
+import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
+import { Search, Menu, User, Heart, ShoppingCart, Settings, X } from 'lucide-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faBars } from '@fortawesome/free-solid-svg-icons';
+import { useRouter } from 'next/router';
+import { useCartWishlist } from '../../hooks/useCartWishlist';
+import { useWishlist } from '../../hooks/useWishlist';
+import { useSearch } from '../../hooks/useSearch';
+import SearchDropdown from './SearchDropdown';
+
+// AllProductsSection Component - displays categories on left, banner on right
+function AllProductsSection() {
+  const [bannerImages, setBannerImages] = useState([]);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Fetch banner images from dedicated banner API
+        const bannerResponse = await fetch('/api/banner');
+        if (bannerResponse.ok) {
+          const bannerData = await bannerResponse.json();
+          if (bannerData.banner && bannerData.banner.images) {
+            // Filter out empty banner images
+            const validImages = bannerData.banner.images.filter(img => img && img.trim() !== '');
+            setBannerImages(validImages);
+          }
+        }
+        
+      } catch (error) {
+        console.error('Error fetching banner data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Auto-slide carousel every 3 seconds
+  useEffect(() => {
+    if (bannerImages.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setCurrentSlide(prev => (prev + 1) % bannerImages.length);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [bannerImages.length]);
+
+  if (loading) {
+    return (
+      <div className="h-full bg-[#153e8f] text-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+      </div>
+    );
+  }
+
+  // Show carousel if multiple images, single image if only one, empty if none
+  if (bannerImages.length === 0) {
+    return (
+      <div className="h-full bg-[#153e8f] flex items-center justify-center">
+        <p className="text-white/70">No banner configured</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full bg-[#153e8f] relative overflow-hidden">
+      {/* Carousel Images */}
+      <div 
+        className="flex transition-transform duration-500 ease-in-out h-full"
+        style={{ transform: `translateX(-${currentSlide * 100}%)` }}
+      >
+        {bannerImages.map((image, index) => (
+          <div key={index} className="min-w-full h-full">
+            <img 
+              src={image} 
+              alt={`Banner ${index + 1}`} 
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Carousel Indicators (only show if multiple images) */}
+      {bannerImages.length > 1 && (
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
+          {bannerImages.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => setCurrentSlide(index)}
+              className={`w-2 h-2 rounded-full transition-colors ${
+                index === currentSlide ? 'bg-white' : 'bg-white/50'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// PopularProductsSection Component
+function PopularProductsSection({ category, onNavigate }) {
+  const [popularProducts, setPopularProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    console.log('PopularProductsSection useEffect:', { 
+      categoryId: category?.id, 
+      displayType: category?.main_menu_display_type,
+      categoryName: category?.name 
+    });
+    if (category && category.id && category.main_menu_display_type === 'products') {
+      fetchPopularProducts(category.id);
+    }
+  }, [category]);
+
+  const fetchPopularProducts = async (categoryId) => {
+    setLoading(true);
+    try {
+      console.log('Fetching popular products for categoryId:', categoryId);
+      const response = await fetch(`/api/main-menu/popular-products?categoryId=${categoryId}`);
+      const data = await response.json();
+      console.log('Popular products response:', data);
+      setPopularProducts(data.products || []);
+    } catch (error) {
+      console.error('Error fetching popular products:', error);
+      setPopularProducts([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Display category image if display type is 'image'
+  if (category.main_menu_display_type === 'image' && category.category_image && category.category_image.startsWith('data:')) {
+    return (
+      <Link href={category.link || `/category/${category.slug}`}>
+        <div className="w-full h-full cursor-pointer flex">
+          <img 
+            src={category.category_image} 
+            alt={category.name}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      </Link>
+    );
+  }
+
+  // Display banner if available
+  if (category.banner && category.banner.startsWith('data:')) {
+    return (
+      <Link href={category.link || `/category/${category.slug}`}>
+        <div className="w-full h-full cursor-pointer flex">
+          <img 
+            src={category.banner} 
+            alt={category.name}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      </Link>
+    );
+  }
+
+  // Display popular products
+  if (popularProducts.length > 0) {
+    return (
+      <div className="h-full p-6 text-white" style={{ background: '#153e8f' }}>
+        <div className="h-full flex flex-col">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              {category.main_menu_description && (
+                <p className="text-sm opacity-90">{category.main_menu_description}</p>
+              )}
+            </div>
+            <div 
+              onClick={() => onNavigate && onNavigate(category.link || `/category/${category.slug}`)}
+              className="text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors cursor-pointer" 
+              style={{ 
+                background: 'linear-gradient(135deg, rgba(41, 173, 178, 0.3) 0%, rgba(153, 180, 118, 0.3) 100%)', 
+                boxShadow: '0 8px 32px rgba(41, 173, 178, 0.4)' 
+              }}
+            >
+              Browse All
+            </div>
+          </div>
+          
+          <div className="flex-1 overflow-hidden">
+            <div className="grid grid-cols-4 gap-3 h-full">
+              {popularProducts.slice(0, 4).map((product) => (
+                <Link key={product.id} href={`/product/${product.slug || product.id}`}>
+                  <div className="bg-white/10 rounded-lg p-2 hover:bg-white/20 transition-colors cursor-pointer h-full flex flex-col">
+                    <div className="aspect-square bg-white/5 rounded mb-2 overflow-hidden">
+                      <img 
+                        src={product.images_cover_url || '/placeholder-game.svg'} 
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1 flex flex-col justify-between">
+                      <h4 className="text-xs font-medium text-white line-clamp-2 mb-1">{product.name}</h4>
+                      <div className="text-xs font-bold text-green-300">€{product.price}</div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback to category-specific message if no popular products
+  return (
+    <div className="h-full p-6 text-white flex items-center justify-end" style={{ background: '#153e8f' }}>
+      <Link href={category.link || `/category/${category.slug}`}>
+        <div className="bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-lg font-medium text-sm hover:bg-white/30 transition-colors cursor-pointer border border-white/30">
+          Browse All
+        </div>
+      </Link>
+    </div>
+  );
+}
+
+// BannerCarouselSection Component - displays rotating banners
+function BannerCarouselSection() {
+  const [bannerImages, setBannerImages] = useState([]);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBannerData = async () => {
+      try {
+        const response = await fetch('/api/banner');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.banner && data.banner.images) {
+            // Filter out empty banner images
+            const validImages = data.banner.images.filter(img => img && img.trim() !== '');
+            setBannerImages(validImages);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching banner data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBannerData();
+  }, []);
+
+  // Auto-slide carousel every 3 seconds
+  useEffect(() => {
+    if (bannerImages.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setCurrentSlide(prev => (prev + 1) % bannerImages.length);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [bannerImages.length]);
+
+  if (loading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-white/60">Loading banners...</div>
+      </div>
+    );
+  }
+
+  if (bannerImages.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-white/60">No banners available</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full relative overflow-hidden">
+      {/* Banner Images */}
+      <div className="relative h-full">
+        {bannerImages.map((image, index) => (
+          <div
+            key={index}
+            className={`absolute inset-0 transition-opacity duration-500 ${
+              index === currentSlide ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            <img
+              src={image}
+              alt={`Banner ${index + 1}`}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Navigation Indicators (only show if more than 1 banner) */}
+      {bannerImages.length > 1 && (
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
+          {bannerImages.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => setCurrentSlide(index)}
+              className={`w-2 h-2 rounded-full transition-colors ${
+                index === currentSlide ? 'bg-white' : 'bg-white/50'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function Header({ cartCount = 0 }) {
+  const router = useRouter();
+  const [lastScrollY, setLastScrollY] = useState(0);
+  const [isSecondaryNavVisible, setIsSecondaryNavVisible] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showProductsDropdown, setShowProductsDropdown] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [hoveredSubcategory, setHoveredSubcategory] = useState(null);
+  const [clickedSubcategory, setClickedSubcategory] = useState(null);
+  const dropdownRef = useRef(null);
+  const productsButtonRef = useRef(null);
+  const [categories, setCategories] = useState([]);
+  const searchRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Use hooks for cart and wishlist counts
+  const { cartCount: realCartCount } = useCartWishlist();
+  const { wishlistCount } = useWishlist();
+
+  // Use live search functionality
+  const {
+    searchTerm,
+    searchResults,
+    searchHistory,
+    isSearching,
+    showDropdown,
+    error,
+    handleSearchChange,
+    handleSearchSubmit,
+    handleResultSelect,
+    handleHistorySelect,
+    showSearchDropdown,
+    hideSearchDropdown,
+    clearSearch
+  } = useSearch();
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    handleSearchSubmit();
+  };
+
+  // Fetch categories for dropdown menu using dedicated main menu structure
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch('/api/navigation/main-menu');
+        if (response.ok) {
+          const data = await response.json();
+          console.log('📋 Categories fetched:', data.categories);
+          setCategories(data.categories || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch main menu items:', error);
+      }
+    };
+    
+    fetchCategories();
+  }, []);
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowProductsDropdown(false);
+      }
+    };
+
+    if (showProductsDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showProductsDropdown]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      if (currentScrollY > lastScrollY && currentScrollY > 100) {
+        setIsSecondaryNavVisible(false);
+      } else if (currentScrollY < lastScrollY) {
+        setIsSecondaryNavVisible(true);
+      }
+      
+      setLastScrollY(currentScrollY);
+    };
+
+    const handleClickOutside = (event) => {
+      if (
+        showProductsDropdown &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target) &&
+        productsButtonRef.current &&
+        !productsButtonRef.current.contains(event.target)
+      ) {
+        setShowProductsDropdown(false);
+        setSelectedCategory(null);
+        setHoveredSubcategory(null);
+        setClickedSubcategory(null);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [lastScrollY, showProductsDropdown]);
+
+  return (
+    <>
+      {/* Responsive Header */}
+      <div 
+        className="text-white z-[99999] fixed top-0 left-0 right-0 border-b border-white/10"
+        style={{ backgroundColor: '#153e90' }}
+      >
+        {/* Desktop Layout - Large screens (1024px+) */}
+        <div className="hidden lg:block">
+          <div className="w-full flex justify-center">
+            <div className="w-full max-w-[1400px] mx-auto px-8 py-4">
+              <div className="flex items-center justify-between">
+                {/* Logo */}
+                <Link href="/">
+                  <div className="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity">
+                    <span className="text-xl font-bold">Gameva</span>
+                  </div>
+                </Link>
+
+                {/* Search Bar */}
+                <div className="flex-1 max-w-lg mx-8" ref={searchRef}>
+                  <form onSubmit={handleSearch} className="relative">
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      placeholder="Search"
+                      value={searchTerm}
+                      onChange={(e) => handleSearchChange(e.target.value)}
+                      onFocus={showSearchDropdown}
+                      onBlur={hideSearchDropdown}
+                      className="w-full bg-white/10 border border-white/20 rounded-full px-4 py-2.5 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button 
+                      type="submit" 
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 rounded-full p-1.5 cursor-pointer hover:opacity-80 transition-opacity"
+                      style={{ background: 'linear-gradient(131deg, #99b476 0%, #29adb2 100%)' }}
+                    >
+                      <Search className="h-4 w-4 text-white" />
+                    </button>
+                    
+                    {/* Live Search Dropdown - Desktop */}
+                    {showDropdown && (
+                      <SearchDropdown
+                        searchResults={searchResults}
+                        searchHistory={searchHistory}
+                        isSearching={isSearching}
+                        error={error}
+                        searchTerm={searchTerm}
+                        onResultSelect={handleResultSelect}
+                        onHistorySelect={handleHistorySelect}
+                        onClose={hideSearchDropdown}
+                      />
+                    )}
+                  </form>
+                </div>
+
+                {/* Right Icons */}
+                <div className="flex items-center space-x-4">
+                  <button 
+                    className="p-2 rounded-full bg-white/10 border border-white/20 cursor-pointer hover:opacity-80 transition-all desktop-nav-icon"
+                  >
+                    <Settings className="h-6 w-6" />
+                  </button>
+                  
+                  <button 
+                    className="p-2 rounded-full bg-white/10 border border-white/20 cursor-pointer hover:opacity-80 transition-all desktop-nav-icon"
+                    onClick={() => router.push('/auth/login')}
+                  >
+                    <User className="h-6 w-6" />
+                  </button>
+
+                  <Link href="/wishlist">
+                    <button className="p-2 rounded-full bg-white/10 border border-white/20 cursor-pointer hover:opacity-80 transition-all relative desktop-nav-icon">
+                      <Heart className="h-6 w-6" />
+                      {wishlistCount > 0 && (
+                        <span className="absolute -top-2 -right-1 text-xs rounded-full h-5 w-5 flex items-center justify-center bg-[#ffffff] text-[#000000]">
+                          {wishlistCount}
+                        </span>
+                      )}
+                    </button>
+                  </Link>
+
+                  <Link href="/cart">
+                    <button 
+                      className="p-2 rounded-full cursor-pointer hover:opacity-80 transition-opacity relative"
+                      style={{ background: 'linear-gradient(131deg, #99b476 0%, #29adb2 100%)' }}
+                    >
+                      <ShoppingCart className="h-6 w-6" />
+                      {realCartCount > 0 && (
+                        <span className="absolute -top-2 -right-1 text-xs rounded-full h-5 w-5 flex items-center justify-center bg-[#ffffff] text-[#000000]">
+                          {realCartCount}
+                        </span>
+                      )}
+                    </button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tablet Layout - Medium screens (768px-1023px) */}
+        <div className="hidden md:block lg:hidden">
+          <div className="w-full flex justify-center">
+            <div className="w-full max-w-[1200px] mx-auto px-6 py-3">
+              <div className="flex items-center justify-between">
+                {/* Logo */}
+                <Link href="/">
+                  <div className="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity">
+                    <span className="text-lg font-bold">Gameva</span>
+                  </div>
+                </Link>
+
+                {/* Compact Search Bar */}
+                <div className="flex-1 max-w-md mx-6">
+                  <form onSubmit={handleSearch} className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search"
+                      value={searchTerm}
+                      onChange={(e) => handleSearchChange(e.target.value)}
+                      onFocus={showSearchDropdown}
+                      onBlur={hideSearchDropdown}
+                      className="w-full bg-white/10 border border-white/20 rounded-full px-3 py-2 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button 
+                      type="submit" 
+                      className="absolute right-1.5 top-1/2 transform -translate-y-1/2 rounded-full p-1 cursor-pointer hover:opacity-80 transition-opacity"
+                      style={{ background: 'linear-gradient(131deg, #99b476 0%, #29adb2 100%)' }}
+                    >
+                      <Search className="h-3.5 w-3.5 text-white" />
+                    </button>
+                    
+                    {/* Live Search Dropdown - Tablet */}
+                    {showDropdown && (
+                      <SearchDropdown
+                        searchResults={searchResults}
+                        searchHistory={searchHistory}
+                        isSearching={isSearching}
+                        error={error}
+                        searchTerm={searchTerm}
+                        onResultSelect={handleResultSelect}
+                        onHistorySelect={handleHistorySelect}
+                        onClose={hideSearchDropdown}
+                      />
+                    )}
+                  </form>
+                </div>
+
+                {/* Compact Right Icons */}
+                <div className="flex items-center space-x-2">
+                  <button 
+                    className="p-1.5 rounded-full bg-white/10 border border-white/20 cursor-pointer hover:opacity-80 transition-all"
+                    onClick={() => router.push('/auth/login')}
+                  >
+                    <User className="h-5 w-5" />
+                  </button>
+
+                  <Link href="/wishlist">
+                    <button className="p-1.5 rounded-full bg-white/10 border border-white/20 cursor-pointer hover:opacity-80 transition-all relative">
+                      <Heart className="h-5 w-5" />
+                      {wishlistCount > 0 && (
+                        <span className="absolute -top-1 -right-1 text-xs rounded-full h-4 w-4 flex items-center justify-center bg-[#ffffff] text-[#000000]">
+                          {wishlistCount}
+                        </span>
+                      )}
+                    </button>
+                  </Link>
+
+                  <Link href="/cart">
+                    <button 
+                      className="p-1.5 rounded-full cursor-pointer hover:opacity-80 transition-opacity relative"
+                      style={{ background: 'linear-gradient(131deg, #99b476 0%, #29adb2 100%)' }}
+                    >
+                      <ShoppingCart className="h-5 w-5" />
+                      {realCartCount > 0 && (
+                        <span className="absolute -top-1 -right-1 text-xs rounded-full h-4 w-4 flex items-center justify-center bg-[#ffffff] text-[#000000]">
+                          {realCartCount}
+                        </span>
+                      )}
+                    </button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Layout - Small screens (0-767px) */}
+        <div className="md:hidden">
+          {/* Mobile Header */}
+          <div className="flex items-center justify-between p-4">
+            {/* Left side buttons */}
+            <div className="flex items-center gap-1">
+              <button 
+                className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              >
+                {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              </button>
+
+              <button 
+                className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                onClick={() => router.push('/auth/login')}
+              >
+                <User className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Center logo */}
+            <Link href="/">
+              <div className="text-base font-bold text-center cursor-pointer hover:opacity-80 transition-opacity">
+                Gamava
+              </div>
+            </Link>
+
+            {/* Right side buttons */}
+            <div className="flex items-center gap-1">
+              <Link href="/wishlist">
+                <button className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors relative">
+                  <Heart className="h-5 w-5" />
+                  {wishlistCount > 0 && (
+                    <span className="absolute -top-1 -right-1 text-xs rounded-full h-4 w-4 flex items-center justify-center bg-[#ffffff] text-[#000000]">
+                      {wishlistCount}
+                    </span>
+                  )}
+                </button>
+              </Link>
+
+              <Link href="/cart">
+                <button 
+                  className="p-2 rounded-full hover:opacity-80 transition-opacity relative"
+                  style={{ background: 'linear-gradient(131deg, #99b476 0%, #29adb2 100%)' }}
+                >
+                  <ShoppingCart className="h-5 w-5" />
+                  {realCartCount > 0 && (
+                    <span className="absolute -top-1 -right-1 text-xs rounded-full h-4 w-4 flex items-center justify-center bg-[#ffffff] text-[#000000]">
+                      {realCartCount}
+                    </span>
+                  )}
+                </button>
+              </Link>
+            </div>
+          </div>
+
+          {/* Mobile Search Section */}
+          <div className="px-3 pb-3 border-b border-white/10">
+            <div className="relative">
+              <form onSubmit={handleSearch} className="relative">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onFocus={showSearchDropdown}
+                  onBlur={hideSearchDropdown}
+                  placeholder="Search for games..."
+                  className="w-full px-4 py-2 pr-10 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <button
+                  type="submit"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1.5 rounded-md hover:bg-white/10 transition-colors"
+                >
+                  <Search className="h-4 w-4 text-white/80" />
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Secondary Navigation */}
+      <div 
+        className={`hidden lg:block text-white z-[99998] fixed top-[4.5rem] left-0 right-0 border-t border-white/10 transition-transform duration-300 ${
+          isSecondaryNavVisible ? 'translate-y-0' : '-translate-y-full'
+        }`} 
+        style={{ backgroundColor: '#ffffff1a' }}
+      >
+        <div className="w-full flex justify-center bg-[#2c519b]">
+          <div className="w-full max-w-[1400px] mx-auto px-8 py-3">
+            <div className="flex items-center justify-start space-x-8">
+              {/* Browse All Products Dropdown */}
+              <div className="relative">
+                <div 
+                  className="cursor-pointer hover:text-white/80 transition-colors font-medium flex items-center space-x-2"
+                  onClick={() => {
+                    console.log('🍔 Hamburger clicked, dropdown state:', !showProductsDropdown);
+                    console.log('📋 Categories state:', categories);
+                    setShowProductsDropdown(!showProductsDropdown);
+                  }}
+                >
+                  <FontAwesomeIcon icon={faBars} className="w-6 h-6" />
+                  <span>Categories</span>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+                
+                {/* Dropdown Menu */}
+                {showProductsDropdown && (
+                  <div className="absolute top-full left-0 mt-1 w-72 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-[99999]">
+                    <Link href="/category/all-products">
+                      <div className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-gray-800 font-medium border-b border-gray-100">
+                        Browse All Products
+                      </div>
+                    </Link>
+                    
+                    {/* Categories Title */}
+                    <div className="px-4 py-2 font-bold text-gray-800 text-sm uppercase tracking-wide border-b border-gray-100">
+                      Categories
+                    </div>
+                    
+                    {/* Dynamic Categories */}
+                    {categories.map((category) => (
+                      <CategoryDropdownItem key={category.id} category={category} />
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              {/* Store Link */}
+              <Link href="/category/all-products">
+                <div className="cursor-pointer hover:text-white/80 transition-colors font-medium">
+                  Store
+                </div>
+              </Link>
+              
+              <Link href="/deals">
+                <div className="cursor-pointer hover:text-white/80 transition-colors font-medium px-3 py-1.5 rounded-lg" style={{
+                  background: 'linear-gradient(131deg, #99b476 0%, #29adb2 100%)',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
+                }}>
+                  Special Deals
+                </div>
+              </Link>
+              
+              <Link href="/category/new-releases">
+                <div className="cursor-pointer hover:text-white/80 transition-colors font-medium">
+                  New Releases
+                </div>
+              </Link>
+              
+              <Link href="/category/best-sellers">
+                <div className="cursor-pointer hover:text-white/80 transition-colors font-medium">
+                  Best Sellers
+                </div>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Professional 1400px Wide Dropdown Menu */}
+      {showProductsDropdown && (
+                  <div 
+                    ref={dropdownRef}
+                    className="fixed left-1/2 transform -translate-x-1/2 shadow-2xl z-[99999]"
+                    style={{ 
+                      top: '72px', 
+                      width: '1400px',
+                      maxWidth: '1400px',
+                      borderRadius: '16px',
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #153e90 0%, #2c519b 50%, #29adb2 100%)'
+                    }}
+                  >
+                    <div className="flex min-h-60">
+                      {/* Column 1 - Main Categories */}
+                      <div className="w-80 p-6 rounded-l-2xl" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+                        <div className="mb-4">
+                          <h3 className="font-bold text-white text-lg">Categories</h3>
+                        </div>
+                        <div className="space-y-1">
+                          {categories.length === 0 ? (
+                            <div className="text-white/60 text-sm py-4">Loading categories...</div>
+                          ) : (
+                            categories.map((category) => (
+                              <div key={category.id} className="group">
+                                <div 
+                                  onMouseEnter={() => {
+                                    setSelectedCategory(category);
+                                    setClickedSubcategory(null);
+                                  }}
+                                  onClick={() => {
+                                    setSelectedCategory(category);
+                                    setClickedSubcategory(null);
+                                  }}
+                                  className={`px-4 py-3 cursor-pointer rounded-lg flex items-center justify-between transition-colors group ${
+                                    selectedCategory?.id === category.id 
+                                      ? 'bg-white/30 text-white' 
+                                      : 'text-white/90 hover:bg-white/20'
+                                  }`}
+                                >
+                                  <Link href={category.link || `/category/${category.slug}`} className="flex items-center space-x-3 flex-1">
+                                    <div className="flex items-center space-x-3">
+                                      {category.icon && category.icon.startsWith('data:') && (
+                                        <img src={category.icon} alt="" className="w-5 h-5 object-cover rounded" />
+                                      )}
+                                      <span className="font-medium text-sm">{category.name}</span>
+                                      {category.show_product_count && (
+                                        <span className="text-xs text-white/60">({category.product_count})</span>
+                                      )}
+                                    </div>
+                                  </Link>
+                                  {category.children && category.children.length > 0 && (
+                                    <svg className="w-4 h-4 text-white/60 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  )}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Column 2 - Subcategories (Only visible when main category is selected and has subcategories) */}
+                      {selectedCategory && selectedCategory.children && selectedCategory.children.length > 0 && (
+                        <div className="w-80 p-6 border-r border-white/20 text-white" style={{ background: '#153e8f' }}>
+                          <div className="h-full flex flex-col">
+                            <div className="mb-4">
+                              <h3 className="font-bold text-white mb-2">{selectedCategory.name}</h3>
+                            </div>
+                            <div className="flex-1 overflow-hidden">
+                              <div className="space-y-2">
+                                {selectedCategory.children.map((subCategory) => (
+                                  <div key={subCategory.id}>
+                                    <div 
+                                      onMouseEnter={() => {
+                                        if (!clickedSubcategory) {
+                                          setHoveredSubcategory(subCategory);
+                                        }
+                                      }}
+                                      onMouseLeave={() => {
+                                        if (!clickedSubcategory) {
+                                          setHoveredSubcategory(null);
+                                        }
+                                      }}
+                                      onClick={() => {
+                                        setClickedSubcategory(subCategory);
+                                        setHoveredSubcategory(null);
+                                      }}
+                                      className={`px-3 py-2 cursor-pointer text-sm rounded-lg transition-colors ${
+                                        (clickedSubcategory?.id === subCategory.id) || (hoveredSubcategory?.id === subCategory.id && !clickedSubcategory)
+                                          ? 'bg-white/30 text-white' 
+                                          : 'text-white/90 hover:bg-white/20'
+                                      }`}
+                                    >
+                                      <Link href={subCategory.link || `/category/${subCategory.slug}`} className="block w-full">
+                                        {subCategory.name}
+                                      </Link>
+                                    </div>
+                                  </div>
+                                ))}
+                                
+                                {/* See All Button */}
+                                <div className="mt-4 pt-3 border-t border-white/20">
+                                  <Link href={selectedCategory.link || `/category/${selectedCategory.slug}`}>
+                                    <div className="px-3 py-2 cursor-pointer text-sm rounded-lg transition-colors bg-white/10 hover:bg-white/20 text-white text-center font-medium">
+                                      See All {selectedCategory.name}
+                                    </div>
+                                  </Link>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Column 3 - Popular Products or Banner Carousel */}
+                      <div className="flex-1 rounded-r-2xl overflow-hidden flex flex-col" style={{ background: '#153e8f' }}>
+                        {selectedCategory && (clickedSubcategory || hoveredSubcategory) ? (
+                          <PopularProductsSection 
+                            category={clickedSubcategory || hoveredSubcategory} 
+                            onNavigate={(url) => window.location.href = url}
+                          />
+                        ) : selectedCategory ? (
+                          <PopularProductsSection 
+                            category={selectedCategory} 
+                            onNavigate={(url) => window.location.href = url}
+                          />
+                        ) : (
+                          <BannerCarouselSection />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <Link href="/deals">
+                <div className="cursor-pointer hover:text-white/80 transition-colors font-medium px-4 py-2 rounded-lg" style={{
+                  background: 'linear-gradient(131deg, #99b476 0%, #29adb2 100%)',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
+                }}>
+                  Special Deals
+                </div>
+              </Link>
+              <Link href="/category/new-releases">
+                <div className="cursor-pointer hover:text-white/80 transition-colors font-medium">
+                  New Releases
+                </div>
+              </Link>
+              <Link href="/category/best-sellers">
+                <div className="cursor-pointer hover:text-white/80 transition-colors font-medium">
+                  Best Sellers
+                </div>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tablet Secondary Navigation */}
+      <div 
+        className={`hidden md:block lg:hidden text-white z-[99998] fixed top-[3.5rem] left-0 right-0 border-t border-white/10 transition-transform duration-300 ${
+          isSecondaryNavVisible ? 'translate-y-0' : '-translate-y-full'
+        }`} 
+        style={{ backgroundColor: '#ffffff1a' }}
+      >
+        <div className="w-full flex justify-center bg-[#2c519b]">
+          <div className="w-full max-w-[1200px] mx-auto px-6 py-2">
+            <div className="flex items-center justify-start space-x-6">
+              {/* Browse All Products Dropdown - Tablet */}
+              <div className="relative">
+                <div 
+                  className="cursor-pointer hover:text-white/80 transition-colors font-medium text-sm flex items-center space-x-2"
+                  onClick={() => setShowProductsDropdown(!showProductsDropdown)}
+                >
+                  <FontAwesomeIcon icon={faBars} className="w-5 h-5" />
+                  <span>Categories</span>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+                
+                {/* Dropdown Menu - Tablet */}
+                {showProductsDropdown && (
+                  <div className="absolute top-full left-0 mt-1 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-[99999]">
+                    <Link href="/category/all-products">
+                      <div className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-gray-800 font-medium border-b border-gray-100 text-sm">
+                        Browse All Products
+                      </div>
+                    </Link>
+                    
+                    {/* Categories Title */}
+                    <div className="px-4 py-2 font-bold text-gray-800 text-xs uppercase tracking-wide border-b border-gray-100">
+                      Categories
+                    </div>
+                    
+                    {/* Dynamic Categories */}
+                    {categories.map((category) => (
+                      <CategoryDropdownItem key={category.id} category={category} isTablet={true} />
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              {/* Store Link - Tablet */}
+              <Link href="/category/all-products">
+                <div className="cursor-pointer hover:text-white/80 transition-colors font-medium text-sm">
+                  Store
+                </div>
+              </Link>
+            </div>
+          </div>
+              <Link href="/deals">
+                <div className="cursor-pointer hover:text-white/80 transition-colors font-medium px-3 py-1.5 rounded-lg text-sm" style={{
+                  background: 'linear-gradient(131deg, #99b476 0%, #29adb2 100%)',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
+                }}>
+                  Special Deals
+                </div>
+              </Link>
+              <Link href="/category/new-releases">
+                <div className="cursor-pointer hover:text-white/80 transition-colors font-medium text-sm">
+                  New Releases
+                </div>
+              </Link>
+              <Link href="/category/best-sellers">
+                <div className="cursor-pointer hover:text-white/80 transition-colors font-medium text-sm">
+                  Best Sellers
+                </div>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Search Dropdown - Fixed positioning for all mobile screen sizes */}
+      {showDropdown && (
+        <div 
+          className="fixed left-3 right-3 bg-[#153e90] rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-hidden md:hidden"
+          style={{ 
+            top: '120px',
+            zIndex: 99999999
+          }}
+        >
+          <SearchDropdown
+            searchResults={searchResults}
+            searchHistory={searchHistory}
+            isSearching={isSearching}
+            error={error}
+            searchTerm={searchTerm}
+            onResultSelect={handleResultSelect}
+            onHistorySelect={handleHistorySelect}
+            onClose={hideSearchDropdown}
+          />
+        </div>
+      )}
+
+      {/* Mobile Navigation Sidebar */}
+      {isMobileMenuOpen && (
+        <>
+          {/* Overlay */}
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-[99999998] md:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          
+          {/* Sidebar */}
+          <div
+            className="fixed top-0 left-0 h-full w-80 text-white z-[99999999] overflow-y-auto md:hidden"
+            style={{ backgroundColor: '#153e90' }}
+          >
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-xl font-bold">Menu</h2>
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Navigation Links */}
+              <div className="space-y-4">
+                <Link href="/" className="block py-3 px-4 rounded-lg hover:bg-white/10 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
+                  Home
+                </Link>
+                
+                {/* Products Section */}
+                <div className="space-y-2">
+                  <div className="py-2 px-4 text-white/80 font-semibold text-sm">Products</div>
+                  
+                  {/* Categories */}
+                  <div className="py-1 px-6 text-white/60 text-xs">Categories</div>
+                  {categories.map((category) => (
+                    <div key={category.id} className="space-y-1">
+                      <Link href={category.link || `/category/${category.slug}`} className="flex items-center space-x-2 py-2 px-8 rounded-lg hover:bg-white/10 transition-colors text-sm" onClick={() => setIsMobileMenuOpen(false)}>
+                        {category.icon && category.icon.startsWith('data:') && (
+                          <img src={category.icon} alt="" className="w-4 h-4 object-cover rounded" />
+                        )}
+                        <span>{category.name}</span>
+                      </Link>
+                      {category.children && category.children.map((subCategory) => (
+                        <Link key={subCategory.id} href={subCategory.link || `/category/${subCategory.slug}`} className="block py-1.5 px-10 rounded-lg hover:bg-white/10 transition-colors text-xs text-white/80" onClick={() => setIsMobileMenuOpen(false)}>
+                          {subCategory.name}
+                        </Link>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+
+                <Link href="/deals" className="block py-3 px-4 rounded-lg hover:bg-white/10 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
+                  Special Deals
+                </Link>
+                <Link href="/category/new-releases" className="block py-3 px-4 rounded-lg hover:bg-white/10 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
+                  New Releases
+                </Link>
+                <Link href="/category/best-sellers" className="block py-3 px-4 rounded-lg hover:bg-white/10 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
+                  Best Sellers
+                </Link>
+                <Link href="/cart" className="block py-3 px-4 rounded-lg hover:bg-white/10 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
+                  Cart
+                </Link>
+                <Link href="/wishlist" className="block py-3 px-4 rounded-lg hover:bg-white/10 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
+                  Wishlist
+                </Link>
+                <Link href="/auth/login" className="block py-3 px-4 rounded-lg hover:bg-white/10 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
+                  Login
+                </Link>
+                <Link href="/auth/register" className="block py-3 px-4 rounded-lg hover:bg-white/10 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
+                  Sign Up
+                </Link>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </>
+  );
+}

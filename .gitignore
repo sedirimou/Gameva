@@ -1,0 +1,67 @@
+# Node dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Output directories
+/.next
+/out
+/build
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.email
+
+# System files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs and debug files
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database files
+*.mdb
+*.sqlite
+*.db
+data.ms/
+
+# Replit files
+.replit
+replit.nix.next/
+.local/
+.cache/
+replit.md
+
+# Other
+coverage/
+dist/
+tmp/
+temp/
+*.pid
+*.seed
+*.pid.lock
+*.tgz
+.rpt2_cache/
+.rts2_cache_*/
+.node_repl_history
+.yarn-integrity
+.parcel-cache
+
+
+# Prevent attached assets folder from being tracked
+attached_assets/
+/generated/prisma

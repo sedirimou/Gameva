@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "framework": "nextjs",
+  "regions": ["fra1"],
+  "installCommand": "npm install && npx prisma generate",
+  "buildCommand": "npx prisma generate && npm run build",
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "build": {
+    "env": {
+      "NODE_ENV": "production"
+    }
+  },
+  "functions": {
+    "pages/api/**/*.js": {
+      "includeFiles": [
+        "node_modules/.prisma/client/**/*",
+        "prisma/schema.prisma"
+      ]
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, PUT, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization"
+        }
+      ]
+    }
+  ]
+}

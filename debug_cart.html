@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Cart Storage</title>
+</head>
+<body>
+    <h1>Cart & Wishlist Debug</h1>
+    <div id="output"></div>
+    
+    <script>
+        function showStorageContents() {
+            const cart = JSON.parse(localStorage.getItem('cart') || '[]');
+            const wishlist = JSON.parse(localStorage.getItem('wishlist') || '[]');
+            
+            const output = document.getElementById('output');
+            output.innerHTML = `
+                <h2>Cart Contents (${cart.length} items):</h2>
+                <pre>${JSON.stringify(cart, null, 2)}</pre>
+                
+                <h2>Wishlist Contents (${wishlist.length} items):</h2>
+                <pre>${JSON.stringify(wishlist, null, 2)}</pre>
+                
+                <h2>Cart Item Types:</h2>
+                <p>Cart item 0 type: ${cart.length > 0 ? typeof cart[0] : 'N/A'}</p>
+                <p>Wishlist item 0 type: ${wishlist.length > 0 ? typeof wishlist[0] : 'N/A'}</p>
+            `;
+        }
+        
+        // Check on page load
+        showStorageContents();
+        
+        // Also check periodically in case it changes
+        setInterval(showStorageContents, 2000);
+    </script>
+</body>
+</html>
